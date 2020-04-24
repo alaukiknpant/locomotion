@@ -1,0 +1,102 @@
+[
+    {
+        "name": "RES_TEST_CRV_10_FR_24_RES_0.5",
+        "data_file_location": "/Users/elainewijaya/locomotion/robustness_testing/curve_testing/data/resolution_tests_data/RES_TEST_CRV_10_FR_24_RES_0.5.dat",
+        "animal_attributes": {
+            "species": "Magic Scoliosis Fish",
+            "exp_type": "MCS funtimes",
+            "ID": "0",
+            "control_group": "False"
+        },
+        "capture_attributes": {
+            "dim_x": 100,
+            "dim_y": 100,
+            "pixels_per_mm": 0.5,
+            "frames_per_sec": 24,
+            "start_time": 0,
+            "end_time": 10,
+            "baseline_start_time": 0,
+            "baseline_end_time": 10
+        }
+    },
+    {
+        "name": "RES_TEST_CRV_10_FR_24_RES_1",
+        "data_file_location": "/Users/elainewijaya/locomotion/robustness_testing/curve_testing/data/resolution_tests_data/RES_TEST_CRV_10_FR_24_RES_1.dat",
+        "animal_attributes": {
+            "species": "Magic Scoliosis Fish",
+            "exp_type": "MCS funtimes",
+            "ID": "1",
+            "control_group": "False"
+        },
+        "capture_attributes": {
+            "dim_x": 100,
+            "dim_y": 100,
+            "pixels_per_mm": 1,
+            "frames_per_sec": 24,
+            "start_time": 0,
+            "end_time": 10,
+            "baseline_start_time": 0,
+            "baseline_end_time": 10
+        }
+    },
+    {
+        "name": "RES_TEST_CRV_10_FR_24_RES_2",
+        "data_file_location": "/Users/elainewijaya/locomotion/robustness_testing/curve_testing/data/resolution_tests_data/RES_TEST_CRV_10_FR_24_RES_2.dat",
+        "animal_attributes": {
+            "species": "Magic Scoliosis Fish",
+            "exp_type": "MCS funtimes",
+            "ID": "2",
+            "control_group": "False"
+        },
+        "capture_attributes": {
+            "dim_x": 100,
+            "dim_y": 100,
+            "pixels_per_mm": 2,
+            "frames_per_sec": 24,
+            "start_time": 0,
+            "end_time": 10,
+            "baseline_start_time": 0,
+            "baseline_end_time": 10
+        }
+    },
+    {
+        "name": "RES_TEST_CRV_10_FR_24_RES_4",
+        "data_file_location": "/Users/elainewijaya/locomotion/robustness_testing/curve_testing/data/resolution_tests_data/RES_TEST_CRV_10_FR_24_RES_4.dat",
+        "animal_attributes": {
+            "species": "Magic Scoliosis Fish",
+            "exp_type": "MCS funtimes",
+            "ID": "3",
+            "control_group": "False"
+        },
+        "capture_attributes": {
+            "dim_x": 100,
+            "dim_y": 100,
+            "pixels_per_mm": 4,
+            "frames_per_sec": 24,
+            "start_time": 0,
+            "end_time": 10,
+            "baseline_start_time": 0,
+            "baseline_end_time": 10
+        }
+    },
+    {
+        "name": "RES_TEST_CRV_10_FR_24_RES_8",
+        "data_file_location": "/Users/elainewijaya/locomotion/robustness_testing/curve_testing/data/resolution_tests_data/RES_TEST_CRV_10_FR_24_RES_8.dat",
+        "animal_attributes": {
+            "species": "Magic Scoliosis Fish",
+            "exp_type": "MCS funtimes",
+            "ID": "4",
+            "control_group": "False"
+        },
+        "capture_attributes": {
+            "dim_x": 100,
+            "dim_y": 100,
+            "pixels_per_mm": 8,
+            "frames_per_sec": 24,
+            "start_time": 0,
+            "end_time": 10,
+            "baseline_start_time": 0,
+            "baseline_end_time": 10
+        }
+    }
+]

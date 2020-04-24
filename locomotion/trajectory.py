@@ -30,6 +30,8 @@ from scipy.signal import savgol_filter
 from collections import defaultdict
 
 #Static Variables
+
+# Original value: 53
 SMOOTH_RANGE = 53 #length of smoothing window in smooth()
 ORDER = 5 #order of smoothing curve used in smooth()
 
@@ -50,6 +52,9 @@ def smooth(X):
     :Return:
      sX : list
   """
+  print("LOG: smooth(X) :: X" = str(X))
+  print ("LOG: smooth(X) :: SMOOTH_RANGE" = str(SMOOTH_RANGE))
+  print ("LOG: smooth(X) :: ORDER" = str(ORDER))
   sX = savgol_filter(X,SMOOTH_RANGE,ORDER)
   return sX
 
