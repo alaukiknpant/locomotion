@@ -24,7 +24,6 @@ from locomotion.animal import throwError
 
 #Static Variables
 PERTURBATION = 0.000000001
-CONFORMAL_FACTOR = 1.45
 TOLERANCE = 0.00001
 
 
@@ -59,7 +58,6 @@ def getSurfaceData(animal_obj, grid_size, start_time=None, end_time=None):
   #store given parameters
   animal_obj.setGridSize(grid_size)
   animal_obj.setPerturbation(PERTURBATION)
-  animal_obj.setConformalFactor(CONFORMAL_FACTOR)
   animal_obj.setTolerance(TOLERANCE)
   
   print("Calculating heatmap for %s..." % animal_obj.getName())
@@ -74,13 +72,8 @@ def getSurfaceData(animal_obj, grid_size, start_time=None, end_time=None):
   animal_obj.setNumVerts(len(original_coordinates))
   animal_obj.setRegularCoordinates(original_coordinates)
   
-  #record boundary vertices
-  boundary_vertices = getBoundaryVertices(animal_obj)
-  
   #get and record triangles
   triangles = getTriangles(animal_obj)
-  while hasHoles(animal_obj, triangles, boundary_vertices): #check for and patch any holes
-    triangles = patchHoles(animal_obj, triangles, boundary_vertices)
   animal_obj.setTriangulation(triangles)
 
   #calculate and store colors for output file
@@ -89,14 +82,8 @@ def getSurfaceData(animal_obj, grid_size, start_time=None, end_time=None):
 
   print("Calculating flattened coordinates for %s..." % animal_obj.getName())
   
-  #calculate conformal flattening of triangulation to unit disk
-  flowers = getFlowers(animal_obj, boundary_vertices) #find the neighbors of each vertex and arrange them in counterclockwise order
-  initial_radii = initializeRadii(animal_obj, boundary_vertices) #initialize circle packing of triangulation
-  radii = getCirclePacking(animal_obj, initial_radii, flowers, boundary_vertices) #calculate maximal circle packing of triangulation in unit disk
-  
   #calculate and record flattened coordinates of triangulation
-  center_vertex = getCenterVertex(animal_obj) #identify center vertex of triangulation
-  flattened_coordinates = getFlatCoordinates(animal_obj, radii, flowers, center_vertex, boundary_vertices) 
+  flattened_coordinates = getFlatCoordinates(animal_obj) 
   animal_obj.setFlattenedCoordinates(flattened_coordinates)
 
   
@@ -190,7 +177,6 @@ def getVertexCoordinates(animal_obj, freqs):
   grid_size = animal_obj.getGridSize()
   x_dim, y_dim = animal_obj.getDims()
   num_x_grid,num_y_grid = animal_obj.getNumGrids()
-  conformal_factor = animal_obj.getConformalFactor()
 
   #normalize the values to floats between 0 and a specified z-dimension
   m = mean(freqs)
@@ -207,42 +193,6 @@ def getVertexCoordinates(animal_obj, freqs):
   for i in range(num_x_grid):
     for j in range(num_y_grid):
       coordinates.append([i*grid_size, j*grid_size, freqs[i][j]])
-
-  #check edge lengths in the induced triangulation and subdivide as necessary
-  for i in range(num_x_grid-1): #all vertices except those on the right and upper boundaries
-    for j in range(num_y_grid-1):
-      dist = linalg.norm(array([i*grid_size, j*grid_size, freqs[i][j]])-array([i*grid_size, (j+1)*grid_size, freqs[i][j+1]])) #vertical edges
-      if dist > conformal_factor*grid_size:
-        num_segments = int(ceil(dist/grid_size))
-        for k in range(1,num_segments):
-          coordinates.append([i*grid_size, (j+float(k)/num_segments)*grid_size, freqs[i][j] + float(k)/num_segments*(freqs[i][j+1]-freqs[i][j])])
-      dist = linalg.norm(array([i*grid_size,j*grid_size,freqs[i][j]])-array([(i+1)*grid_size, j*grid_size, freqs[i+1][j]])) #horizontal edges
-      if dist > conformal_factor*grid_size:
-        num_segments = int(ceil(dist/grid_size))
-        for k in range(1,num_segments):
-          coordinates.append([(i+float(k)/num_segments)*grid_size,j*grid_size,freqs[i][j]+float(k)/num_segments*(freqs[i+1][j]-freqs[i][j])])
-      dist = linalg.norm(array([i*grid_size, j*grid_size,freqs[i][j]])-array([(i+1)*grid_size,(j+1)*grid_size, freqs[i+1][j+1]])) #diagonal edges
-      if dist > conformal_factor*grid_size:
-        num_segments = int(ceil(dist/grid_size))
-        for k in range(1,num_segments):
-          coordinates.append([(i+float(k)/num_segments)*grid_size,(j+float(k)/num_segments)*grid_size,freqs[i][j]+float(k)/num_segments*(freqs[i+1][j+1]-freqs[i][j])])  
-  for i in range(num_x_grid-1): #upper boundary vertices
-    j = num_y_grid-1
-    dist = linalg.norm(array([i*grid_size, j*grid_size, freqs[i][j]])-array([(i+1)*grid_size, j*grid_size, freqs[i+1][j]])) #horizontal edges
-    if dist > conformal_factor*grid_size:
-      num_segments = int(ceil(dist/grid_size))
-      for k in range(1,num_segments):
-        coordinates.append([(i+float(k)/num_segments)*grid_size,j*grid_size,freqs[i][j]+float(k)/num_segments*(freqs[i+1][j]-freqs[i][j])])
-  for j in range (num_y_grid-1): #right boundary vertices
-    i = num_x_grid-1
-    dist = linalg.norm(array([i*grid_size, j*grid_size, freqs[i][j]])-array([i*grid_size, (j+1)*grid_size, freqs[i][j+1]])) #vertical edges
-    if dist > conformal_factor*grid_size:
-      num_segments = int(ceil(dist/grid_size))
-      for k in range(1,num_segments):
-        coordinates.append([i*grid_size,(j+float(k)/num_segments)*grid_size,freqs[i][j]+float(k)/num_segments*(freqs[i][j+1]-freqs[i][j])])
-
-  # sort the coordinates by z-value (third entry)
-  coordinates.sort(key=lambda c: -c[2]) 
 
   return coordinates
 
@@ -298,33 +248,8 @@ def getBoundaryVertices(animal_obj):
   return boundary_vertices
 
 
-def getCircumcircle(a, b, c, tolerance):
-  """ Helper method for getTriangles method below. Returns the circumcenter 
-    and circumradius of three points on the plane.
-
-    :Parameters:
-      a,b,c : three pairs of floats
-        coordinates of three points in the plane
-      tolerance : float
-        small positive number used to avoid division by zero
-
-    :Returns:
-      a list of length two (coordinates of a point in the plane, namely the circumcenter 
-      of the three input points) and a float (the circumradius of the three input points)
-  """
-  
-  d = 2.0*(a[0]*(b[1]-c[1])+b[0]*(c[1]-a[1])+c[0]*(a[1]-b[1]))
-  if d < tolerance:
-    d = tolerance
-  center = [1.0/d*((a[0]**2+a[1]**2)*(b[1]-c[1])+(b[0]**2+b[1]**2)*(c[1]-a[1])+(c[0]**2+c[1]**2)*(a[1]-b[1])), \
-            1.0/d*((a[0]**2+a[1]**2)*(c[0]-b[0])+(b[0]**2+b[1]**2)*(a[0]-c[0])+(c[0]**2+c[1]**2)*(b[0]-a[0])),0]
-  radius = linalg.norm(array([a[0],a[1],0])-array(center))
-  return center, radius
-
-
 def getTriangles(animal_obj):
-  """ Computes a Delaunay triangulation on the regular coordinates of an animal using a version 
-    of the Bowyer-Watson algorithm
+  """ Computes a basic triangulation on the regular coordinates of an animal
 
     :Parameters:
       animal_obj : animal object, initialized with regular coordinates set/updated
@@ -334,159 +259,17 @@ def getTriangles(animal_obj):
       in the triangulation of a surface
   """
   #store relevant parameters
-  x_dim, y_dim = animal_obj.getDims()
-  coordinates = animal_obj.getRegularCoordinates()
-  tolerance = animal_obj.getTolerance()
-  num_verts = animal_obj.getNumVerts()
+  num_x_grid,num_y_grid = animal_obj.getNumGrids()
 
-  #append bounding triangle (three points in the z=0 plane whose convex hull contains the bounding rectangle of x- and y-coordinates
-  coordinates.append([-5,-5,0])
-  coordinates.append([x_dim+y_dim+2,-1,0])
-  coordinates.append([-1,x_dim+y_dim+2,0])
+  #initialize triangle list
+  triangles = []
+  
+  #iterate through lower left corners of grid and append canonical triangles
+  for i in range(num_x_grid-1):
+    for j in range(num_y_grid-1):
+      triangles.append([i*num_y_grid+j,(i+1)*num_y_grid+j,(i+1)*num_y_grid+(j+1)])
+      triangles.append([i*num_y_grid+j,(i+1)*num_y_grid+(j+1),i*num_y_grid+(j+1)])
 
-  #initialize triangle list with bounding triangle
-  triangles = [[num_verts,num_verts+1,num_verts+2]]
-
-  #increment through the list of vertices 
-  for vertex in range(num_verts):
-
-    #for each new vertex, v, find all the current triangles whose circumcircles contain v 
-    bad_triangles = []
-    for triangle in triangles:
-      triangle_center, triangle_radius = getCircumcircle(coordinates[triangle[0]], coordinates[triangle[1]], coordinates[triangle[2]], tolerance)
-      if linalg.norm(array([coordinates[vertex][0],coordinates[vertex][1],0])-array(triangle_center)) < triangle_radius:
-        bad_triangles.append(triangle)
-
-    #find the boundary polygon of the "bad" triangles whose circumcircles contain v
-    polygon = []
-    edge_count = [[0 for j in range(i)] for i in range(num_verts+3)]
-    for triangle in bad_triangles:
-      sorted_triangle = sorted(triangle)
-      edge_count[sorted_triangle[2]][sorted_triangle[1]] += 1
-      edge_count[sorted_triangle[2]][sorted_triangle[0]] += 1
-      edge_count[sorted_triangle[1]][sorted_triangle[0]] += 1
-    for v in range(num_verts+3):
-      for w in range(v):
-        if edge_count[v][w] == 1:
-          polygon.append([v,w])
-
-    #remove all the "bad" triangles in the triangulation and replace them with a triangulation of the boundary polygon centered at v
-    for triangle in bad_triangles:
-      triangles.remove(triangle)
-    for edge in polygon:
-      if cross(array(coordinates[edge[0]])-array(coordinates[vertex]),array(coordinates[edge[1]])-array(coordinates[vertex]))[2] > -tolerance:
-        triangle = [vertex,edge[0],edge[1]]
-      else:
-        triangle = [vertex,edge[1],edge[0]]
-      triangles.append(triangle)
-
-  #remove all the triangles that contain one of the three bounding triangle vertices
-  removal = []
-  for triangle in triangles:
-    if num_verts in triangle or num_verts+1 in triangle or num_verts+2 in triangle:
-      removal.append(triangle)
-  for triangle in removal:
-    triangles.remove(triangle)
-    
-  #remove the three bounding triangle vertices
-  coordinates.remove([-5,-5,0])
-  coordinates.remove([x_dim+y_dim+2,-1,0])
-  coordinates.remove([-1,x_dim+y_dim+2,0])
-
-  return triangles
-
-
-def hasHoles(animal_obj, triangles, boundary_vertices):
-  """ All of the triangulations in this project are assumed to be simply connected.  This method 
-    is used identify any holes that may have arisen from calculation error.  Specifically, it 
-    checks a triangulation for holes by searching for "boundary" edges that are not along a boundary 
-    edge of the bounding rectangle.
-
-    :Parameters:
-      animal_obj : animal object, initialized with regular coordinates set/updated
-      triangles : a list of triples of ints whose values are between 0 and one less than the number of regular vertices stored in the animal object
-      boundary_vertices : list of ints whose values are between 0 and one less than the number of regular vertices stored in the animal object
-
-    :Returns:
-      bool (true if the method found a non-boundary "boundary" edge and false otherwise)
-  """
-
-  #store relevant parameter
-  num_verts = animal_obj.getNumVerts()
-
-  #initial return value
-  answer = False
-
-  #calculate incidence matrix between edges and triangles in input
-  check_matrix = [[0 for j in range(i)] for i in range(num_verts)]
-  for triangle in triangles:
-    sorted_triangle = sorted(triangle)
-    check_matrix[sorted_triangle[2]][sorted_triangle[1]] += 1
-    check_matrix[sorted_triangle[2]][sorted_triangle[0]] += 1
-    check_matrix[sorted_triangle[1]][sorted_triangle[0]] += 1
-
-  #count the number of interior edges that belong to exactly one triangle 
-  count = 0
-  for v in range(num_verts):
-    for w in range(v):
-      if check_matrix[v][w] == 1 and v not in boundary_vertices and w not in boundary_vertices:
-        print("!!!Warning: Triangulation has holes!!! (%d,%d)" % (v,w))
-        count += 1
-        
-  #update return value based on counting result
-  if count > 1:
-    answer = True
-    
-  return answer
-
-
-def patchHoles(animal_obj, triangles, boundary_vertices):
-  """ All of the triangulations in this project are assumed to be simply connected.  This method 
-    is used patch any holes that may arise from calculation error.  Specifically, it identifies 
-    adjacent pairs of non-boundary edges that each belong to exactly one triangle in a propsed 
-    triangulation and glues in a triangle to fill in or "patch" the corresponding hole. 
-
-    :Parameters:
-      animal_obj : animal object, initialized with regular coordinates set/updated
-      triangles : a list of triples of ints whose values are between 0 and one less than the number of regular vertices stored in the animal object
-      boundary_vertices : list of ints whose values are between 0 and one less than the number of regular vertices stored in the animal object
-
-    :Returns:
-      list of triples of ints, specifying the indices of the vertices for each triangle in
-      in the triangulation of a surface
-  """
-
-  #store relevant paramters
-  num_verts = animal_obj.getNumVerts()
-  coordinates = animal_obj.getRegularCoordinates()
-  tolerance = animal_obj.getTolerance()
-
-  #calculate incidence matrix between edges and triangles in input
-  check_matrix = [[0 for j in range(i)] for i in range(num_verts)]
-  for triangle in triangles:
-    sorted_triangle = sorted(triangle)
-    check_matrix[sorted_triangle[2]][sorted_triangle[1]] += 1
-    check_matrix[sorted_triangle[2]][sorted_triangle[0]] += 1
-    check_matrix[sorted_triangle[1]][sorted_triangle[0]] += 1
-
-  #gather the interior edges that belong to exactly one triangle
-  bad_edges = []
-  for w in range(num_verts-1):
-    for v in range(w+1,num_verts):
-      if check_matrix[v][w] == 1 and v not in boundary_vertices and w not in boundary_vertices:
-        bad_edges.append([w,v])
-        
-  #if there are more than two "bad" edges, append a new triangle with the first pair of adjacent "bad" edges using the correct orientation
-  if len(bad_edges) > 1:
-    if cross(array(coordinates[bad_edges[0][1]])-array(coordinates[bad_edges[0][0]]),array(coordinates[bad_edges[1][1]])-array(coordinates[bad_edges[0][0]]))[2] > -tolerance:
-      new_triangle = [bad_edges[0][0],bad_edges[0][1],bad_edges[1][1]]
-    else:
-      new_triangle = [bad_edges[0][0],bad_edges[1][1],bad_edges[0][1]]
-    triangles.append(new_triangle)
-
-    #notify user that a patch was made
-    print("Added patch: %s" % str(new_triangle))
-    
   return triangles
   
 
@@ -537,188 +320,16 @@ def getColors(animal_obj):
 #################################################################################### 
 
 
-def getFlowers(animal_obj, boundary_vertices):
-  """ Calculuates the flower (list of neighbors), in counter-clockwise order, of each vertex in the triangulation of an animal
-
-    :Parameters:
-      animal_obj : animal object, initialized with regular coordinates and triangulation set/updated
-      boundary_vertices : list of ints whose values are between 0 and one less than the number of regular vertices stored in the animal object
-
-    :Returns:
-      list of lists of ints, specifying the indices of the vertices neighboring each vertex, in counter-clockwise order, of the triangulation
-      associated to an animal
-  """
-
-  #gather relevant parameters
-  num_verts = animal_obj.getNumVerts()
-  triangles = animal_obj.getTriangulation()
-
-  #initialize return list
-  flowers = [[] for vertex in range(num_verts)]
-
-  #iterate through the vertices of the animal object. Flowers of interior vertices will be cycles while
-  #flowers of boundary vertices will be ordered lists with distinct start/end vertices.
-  for vertex in range(num_verts):
-
-    #initialize first and last neighbors of the current vertex
-    first_neighbor, last_neighbor = 0, 0
-
-    #the first and last neighbors of each boundary_vertex is already known since the boundary_vertices are stored in counter-clockwise order
-    if vertex in boundary_vertices: 
-      first_neighbor = boundary_vertices[(boundary_vertices.index(vertex)+1) % len(boundary_vertices)]
-      last_neighbor = boundary_vertices[(boundary_vertices.index(vertex)-1) % len(boundary_vertices)]
-
-    #for interior vertices, set an arbitrary first neighbor by finding a triangle that contains the current vertex
-    else:
-      for triangle in triangles:
-        if vertex in triangle:
-          first_neighbor = triangle[(triangle.index(vertex)+2) % 3]
-          last_neighbor = triangle[(triangle.index(vertex)+1) % 3]
-          flowers[vertex].append(last_neighbor) #the last vertex is listed at the beginning and end of the return list for each interior vertex
-          break 
-
-    #append neighbors to return list sequentially starting with the first neighbor found above
-    flowers[vertex].append(first_neighbor)
-
-    #search for all the neighbors in counter-clockwise order by searching through the triangles
-    #that contain the current vertex and the most recent "next" neighbor.  Keep going until the
-    #next neighbor is the last neighbor.
-    empty_search = False
-    next_neighbor = first_neighbor #initialize next neighbor 
-    while next_neighbor != last_neighbor and empty_search == False: 
-      empty_search = True
-      
-      #search for a triangle that contains the current vertex and the next vertex
-      for t in range(len(triangles)):
-        if vertex in triangles[t] and next_neighbor in triangles[t]: 
-          for k in range(3):
-            
-            #if the third vertex of the triangle has not already by appended to the return list, add it and update the next neighbor
-            if triangles[t][k] != vertex and triangles[t][k] not in flowers[vertex]: 
-              flowers[vertex].append(triangles[t][k])
-              next_neighbor = triangles[t][k] #update the next neighbor to the most recent neighbor added
-              empty_search = False
-              
-    #append the last neighbor to the return list
-    if vertex not in boundary_vertices: 
-      flowers[vertex].append(last_neighbor)
-      
-  return flowers
-
-
-def initializeRadii(animal_obj,boundary_vertices):
-  """ Initializes the radii for the circle packing of the triangulation associated to an animal.
-    Different radii are assigned to interior and boundary vertices.
-
-    :Parameters:
-      animal_obj : animal object, initialized with regular coordinates and triangulation set/updated
-      boundary_vertices : list of ints whose values are between 0 and one less than the number of regular vertices stored in the animal object
-
-    :Returns:
-      list of floats, specifying the initial radii to begin the circle packing algorithm for the triangulation associated to an animal 
-  """
-
-  #store relevant parameters
-  num_verts = animal_obj.getNumVerts()
-
-  #initialize return list
-  radii = []
-
-  #assign radius 0.001 to each boundary vertex and radius 0.5 to each interior vertex
-  for vertex in range(num_verts):
-    if vertex in boundary_vertices:
-      radii.append(0.001)
-    else:
-      radii.append(0.5)
-  
-  return radii
-
-
-def getAlpha(i , j , k , radii):
-  #this is a helper method for the circle packing algorithm below 
-  return 2*asin((radii[i]*(1-radii[j])/(1-radii[i]*radii[j])*(1-radii[k])/(1-radii[i]*radii[k]))**0.5)
-
-
-def getAngle(a, b, c):
-  #this is a helper method for the circle pacing algorithm below
-  val = (cosh(b)*cosh(c)-cosh(a))/(sinh(b)*sinh(c))
-  if val > 1:
-    val = 1
-  elif val < -1:
-    val = -1
-  return acos(val)
-
-
-def getTheta(i , flower, radii):
-  #this is a helper method for the circle pacing algorithm below
-  theta = 0
-  for k in range(len(flower)-1):
-    theta += getAlpha(i , flower[k], flower[k+1], radii)
-  return theta
-
-
-def getCirclePacking(animal_obj, radii, flowers, boundary_vertices):
-  """ Calculuates a maximal circle packing of the triangulation associated to an animal in the hyperbolic disk
-    according to the algorithm presented in "A Circle Packing Algorithm" by Collins and Stephenson
-
-    :Parameters:
-      animal_obj : animal object, initialized with regular coordinates and triangulation set/updated
-      radii : list of floats containing the initial radii for the circle packing algorithm
-      flowers : list of lists of ints specifying the flower (neighbors in counter-clockwise order) of each vertex
-      boundary_vertices : list of ints whose values are between 0 and one less than the number of regular vertices stored in the animal object
-
-    :Returns:
-      list of floats specifying the radii of the circles in a maximal circle packing of the triangulation associated to an animal
-  """
-
-  #store relevant parameters
-  tolerance = animal_obj.getTolerance()
-  perturb = animal_obj.getPerturbation()
-
-  #run circle packing algorithm (see paper referenced above)
-  error = tolerance+1
-  while error > tolerance:
-    error = 0
-    for vertex in range(len(radii)):
-      if vertex not in boundary_vertices:
-        k = len(flowers[vertex])-1
-        theta = getTheta(vertex,flowers[vertex],radii)
-        beta = sin(theta/(2*k))
-        delta = sin(pi/k)
-        v_hat = (beta-radii[vertex]**0.5)/(beta*radii[vertex]-radii[vertex]**0.5)
-        if v_hat < 0:
-          v_hat = 0.0
-        radii[vertex] = ((2*delta)/(((1-v_hat)**2+4*(delta**2)*v_hat)**0.5+(1-v_hat)))**2
-        error += abs(theta-2*pi)
-        
-  return radii
-
-
-def getCenterVertex(animal_obj):
-  #this is a helper method for the getFlatCoordinates method below
-  center_vertex = -1
-  x_dim, y_dim = animal_obj.getDims()
-  coordinates = animal_obj.getRegularCoordinates()
-  for c in coordinates:
-    if c[0] == x_dim/2.0 and c[1] == y_dim/2.0:
-      center_vertex = coordinates.index(c)
-  return center_vertex
-
-
 def mobius(u, v, a, b):
   #this is a helper method for the getFlatCoordinates method below
   return [((u-a)*(a*u+b*v-1)+(v-b)*(a*v-b*u))/((a*u+b*v-1)**2+(a*v-b*u)**2), ((v-b)*(a*u+b*v-1)-(u-a)*(a*v-b*u))/((a*u+b*v-1)**2+(a*v-b*u)**2)]
 
 
-def getFlatCoordinates(animal_obj, radii, flowers, center, boundary_vertices):
+def getFlatCoordinates(animal_obj):
   """ Calculates the vertex coordinates for the triangulation of an animal from its corresponding circle packing in the unit disk
 
     :Parameters:
       animal_obj : animal object, initialized with regular coordinates and triangulation set/updated
-      radii : list of floats containing the initial radii for the circle packing algorithm
-      flowers : list of lists of ints specifying the flower (neighbors in counter-clockwise order) of each vertex
-      center : int, index of the most central vertex of the triangulation
-      boundary_vertices : list of ints whose values are between 0 and one less than the number of regular vertices stored in the animal object
 
     :Returns:
       list of pairs of floats, specifying the x- and y-coordinates of the vertices of a triangulation that has been conformally flattened
@@ -726,92 +337,37 @@ def getFlatCoordinates(animal_obj, radii, flowers, center, boundary_vertices):
   """
 
   #store relevant parameters
+  reg_coordinates = animal_obj.getRegularCoordinates()
   triangles = animal_obj.getTriangulation()
+  boundary_vertices = getBoundaryVertices(animal_obj)
   tolerance = animal_obj.getTolerance()
 
   #initialize return list
-  coordinates = [[] for r in radii]
+  flat_coordinates = [[] for c in reg_coordinates]
 
-  #initialize list of booleans to keep track of which circles have and have not been placed
-  placed = [False for r in radii]
-
-  #convert the radii from hyperbolic to euclidean distances
-  adjusted_radii = []
-  for radius in range(len(radii)):
-    adjusted_radii.append(-0.5*log(radii[radius]))
-
-  #place center vertex at the origin
-  coordinates[center].append(0.0)
-  coordinates[center].append(0.0)
-  placed[center] = True
-
-  #place first neighbor of center vertex on the x-axis 
-  coordinates[flowers[center][0]].append(adjusted_radii[center]+adjusted_radii[flowers[center][0]])
-  coordinates[flowers[center][0]].append(0.0)
-  placed[flowers[center][0]] = True
-
-  #place remaining neighbors of center vertex
-  for neighbor in range(1,len(flowers[center])):
-    if not placed[flowers[center][neighbor]]:
-      coordinates[flowers[center][neighbor]].append(adjusted_radii[center]+adjusted_radii[flowers[center][neighbor]])
-      coordinates[flowers[center][neighbor]].append(coordinates[flowers[center][neighbor-1]][1]+getAlpha(center,flowers[center][neighbor-1],flowers[center][neighbor],radii))
-      placed[flowers[center][neighbor]] = True
-
-  #place remaining vertices by searching through the triangles with exactly two vertices already placed and placing the third
-  while False in placed:
-    for triangle in triangles:
-      count = 0
-      A = 0
-      for i in range(3):
-        if placed[triangle[i]]:
-          count += 1
-        else:
-          A = triangle[i]
-      if count == 2:
-        B = triangle[(triangle.index(A)+1)%3]
-        C = triangle[(triangle.index(A)+2)%3]
-        r1 = coordinates[C][0]
-        r2 = coordinates[B][0]
-        a = adjusted_radii[B]+adjusted_radii[C]
-        b = adjusted_radii[A]+adjusted_radii[C]
-        c = adjusted_radii[A]+adjusted_radii[B]
-        if (coordinates[B][1]-coordinates[C][1])%(2*pi) < pi:
-          alpha = getAngle(c,a,b) + getAngle(r2,a,r1)
-        else:
-          alpha = getAngle(c,a,b) - getAngle(r2,a,r1)
-        if alpha > pi:
-          delta = getAngle(r1,a,r2)+getAngle(b,a,c)
-          r3 = acosh(cosh(r2)*cosh(c)-sinh(r2)*sinh(c)*cos(delta))
-          beta = coordinates[C][1]-getAngle(b,r1,r3)
-        elif alpha < 0:
-          alpha = -alpha
-          r3 = acosh(cosh(r1)*cosh(b)-sinh(r1)*sinh(b)*cos(alpha))
-          beta = coordinates[C][1]-getAngle(b,r1,r3)
-        else:
-          r3 = acosh(cosh(r1)*cosh(b)-sinh(r1)*sinh(b)*cos(alpha))
-          beta = coordinates[C][1]+getAngle(b,r1,r3)
-        coordinates[A].append(r3)
-        coordinates[A].append(beta)
-        placed[A] = True
-        break
-      
+  #
+  # 
+  # INSERT LIBIGL CODE HERE FOR CALCULATING THE CONFORMAL FLATTENING
+  #
+  #
+  
   #convert return list from polar coordinates to cartesian coordinates
-  coordinates = [[tanh(c[0])*cos(c[1]),tanh(c[0])*sin(c[1])] for c in coordinates]
-  coordinates = [[c[0]/(1+(1-c[0]**2-c[1]**2)**0.5),c[1]/(1+(1-c[0]**2-c[1]**2)**0.5)] for c in coordinates]
+  flat_coordinates = [[tanh(c[0])*cos(c[1]),tanh(c[0])*sin(c[1])] for c in flat_coordinates]
+  flat_coordinates = [[c[0]/(1+(1-c[0]**2-c[1]**2)**0.5),c[1]/(1+(1-c[0]**2-c[1]**2)**0.5)] for c in flat_coordinates]
 
   #apply a conformal automorphism (Mobius transformation) of the unit disk that moves the center of mass of the flattened coordinates to the origin
-  p = mean([c[0] for c in coordinates])
-  q = mean([c[1] for c in coordinates])
+  p = mean([c[0] for c in flat_coordinates])
+  q = mean([c[1] for c in flat_coordinates])
   while p**2+q**2 > tolerance:
-    for i in range(len(coordinates)):
-      x = coordinates[i][0]
-      y = coordinates[i][1]
-      coordinates[i] = mobius(x,y,p,q)
-      coordinates[i].append(0)
-    p = mean([c[0] for c in coordinates])
-    q = mean([c[1] for c in coordinates])
+    for i in range(len(flat_coordinates)):
+      x = flat_coordinates[i][0]
+      y = flat_coordinates[i][1]
+      flat_coordinates[i] = mobius(x,y,p,q)
+      flat_coordinates[i].append(0)
+    p = mean([c[0] for c in flat_coordinates])
+    q = mean([c[1] for c in flat_coordinates])
   
-  return coordinates
+  return flat_coordinates
 
 
 #########################################################################  
