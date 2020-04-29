@@ -54,7 +54,7 @@ def writeDistTableToHeatmap(animal_list, results, outdir, outfilename, color_min
                                    +[dict(x=N+1.0,y=i+0.0,text=animal_list[N-i-1].getName()[4:] if animal_list[N-i-1].inControlGroup() else animal_list[N-i-1].getName()[4:]+' ',
                                           font={'color':'cyan' if animal_list[N-i-1].inControlGroup() else 'magenta', 'size':7},
                                           textangle=0,showarrow=False) for i in range(N)])
-  plotly.offline.plot(figure, filename=outpath)
+  plotly.offline.plot(figure, filename=outpath, auto_open=False)
   print("LOG: Plot the heatmap in %s" % outpath)
 
 

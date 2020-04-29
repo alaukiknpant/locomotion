@@ -28,14 +28,24 @@ import locomotion.animal as animal
 from locomotion.animal import throwError
 from scipy.signal import savgol_filter
 from collections import defaultdict
+import warnings
+
 
 #Static Variables
 
-# Original value: 53
+# Original value: 5
 SMOOTH_RANGE = 53 #length of smoothing window in smooth()
 ORDER = 5 #order of smoothing curve used in smooth()
 
+
+# temp function for robustness testing
+def setSmoothingWindow(n):
+    global SMOOTH_RANGE
+    SMOOTH_RANGE = n
+    print ("LOG: setSmoothingWindow(n):: Setting smoothing window to " + str(SMOOTH_RANGE))
+
 #############################
+
 
 def getDerivatives(X, axis = 0):
   """
@@ -52,10 +62,8 @@ def smooth(X):
     :Return:
      sX : list
   """
-  print("LOG: smooth(X) :: X" = str(X))
-  print ("LOG: smooth(X) :: SMOOTH_RANGE" = str(SMOOTH_RANGE))
-  print ("LOG: smooth(X) :: ORDER" = str(ORDER))
-  sX = savgol_filter(X,SMOOTH_RANGE,ORDER)
+  print ("LOG: smooth(X) :: SMOOTH_RANGE = " + str(SMOOTH_RANGE))
+  sX = savgol_filter(X, SMOOTH_RANGE, ORDER)
   return sX
 
 
@@ -238,6 +246,9 @@ def computeAllBDD(animal_list, varnames, seg_start_time, seg_end_time, norm_mode
      animal[j]
     
   """
+  if seg_start_time - seg_end_time >= 5:
+        warnings.warn("Minimum time needed for comparison is 5 seconds. Change start and end time.")
+
   num_animals = len(animal_list)
   BDD = [['' for i in range(num_animals)] for j in range(num_animals)]
   for i in range(num_animals):
