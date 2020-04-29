@@ -11,6 +11,6 @@ Use the `CurveGenerator_Matt.ipynb` file to generate and test curves.
 
 # Testing for Robustness
 
-Use the `robustness_testing.ipynb` in the `locomotion` directory above this to execute the robustness tests. They have been written in a way similar to the installation checks.
+Use the `robustness_tests.ipynb` in the `locomotion` directory above this to execute the robustness tests. They have been written in a way similar to the installation checks.
 
 The results for frame rate and resolution tests can be seen in `frame_rate_results` and `resolution_results` respectively, where the heatmaps are in both csv and html formats for each curve.
