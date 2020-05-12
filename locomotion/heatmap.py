@@ -22,6 +22,8 @@ import locomotion.write as write
 import locomotion.animal as animal
 from locomotion.animal import throwError
 
+import igl
+
 #Static Variables
 PERTURBATION = 0.000000001
 TOLERANCE = 0.00001
@@ -337,25 +339,23 @@ def getFlatCoordinates(animal_obj):
   """
 
   #store relevant parameters
-  reg_coordinates = animal_obj.getRegularCoordinates()
-  triangles = animal_obj.getTriangulation()
-  boundary_vertices = getBoundaryVertices(animal_obj)
+  v, f = array(animal_obj.getRegularCoordinates()), array(animal_obj.getTriangulation())
+    
+  # boundary_vertices = getBoundaryVertices(animal_obj)
+  boundary_vertices = igl.boundary_loop(f)
   tolerance = animal_obj.getTolerance()
 
-  #initialize return list
-  flat_coordinates = [[] for c in reg_coordinates]
-
-  #
-  # 
-  # INSERT LIBIGL CODE HERE FOR CALCULATING THE CONFORMAL FLATTENING
-  #
-  #
+  # ========== START: INSERT LIBIGL CODE HERE FOR CALCULATING THE CONFORMAL FLATTENING ==============
+  flattened_boundary = igl.map_vertices_to_circle(v, boundary_vertices)
+  print(flattened_boundary)
+  flat_coordinates = igl.harmonic_weights(v, f, boundary_vertices, flattened_boundary, 1)
+  # ========== END: INSERT LIBIGL CODE HERE FOR CALCULATING THE CONFORMAL FLATTENING ================
   
-  #convert return list from polar coordinates to cartesian coordinates
+  # convert return list from polar coordinates to cartesian coordinates
   flat_coordinates = [[tanh(c[0])*cos(c[1]),tanh(c[0])*sin(c[1])] for c in flat_coordinates]
   flat_coordinates = [[c[0]/(1+(1-c[0]**2-c[1]**2)**0.5),c[1]/(1+(1-c[0]**2-c[1]**2)**0.5)] for c in flat_coordinates]
 
-  #apply a conformal automorphism (Mobius transformation) of the unit disk that moves the center of mass of the flattened coordinates to the origin
+  # apply a conformal automorphism (Mobius transformation) of the unit disk that moves the center of mass of the flattened coordinates to the origin
   p = mean([c[0] for c in flat_coordinates])
   q = mean([c[1] for c in flat_coordinates])
   while p**2+q**2 > tolerance:
